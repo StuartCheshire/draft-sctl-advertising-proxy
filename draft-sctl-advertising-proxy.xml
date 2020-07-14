@@ -1,0 +1,509 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE rfc SYSTEM "rfc2629-xhtml.ent">
+
+<rfc xmlns:xi="http://www.w3.org/2001/XInclude" consensus="true"
+     category="std" docName="draft-sctl-advertising-proxy-00" ipr="trust200902"
+     obsoletes="" updates="" submissionType="IETF" xml:lang="en"
+     tocInclude="false" tocDepth="3" symRefs="true" sortRefs="false"
+     version="3">
+
+  <front>
+    <title abbrev="Advertising Proxy for DNS-SD SRP">Advertising Proxy for DNS-SD Service Registration Protocol</title>
+
+    <author initials="S." surname="Cheshire" fullname="Stuart Cheshire">
+      <organization>Apple Inc.</organization>
+      <address>
+        <postal>
+          <street>One Apple Park Way</street>
+          <city>Cupertino</city>
+          <region>California</region>
+          <code>95014</code>
+          <country>United States of America</country>
+        </postal>
+        <phone>+1 (408) 996-1010</phone>
+        <email>cheshire@apple.com</email>
+      </address>
+    </author>
+
+    <author initials="T." surname="Lemon" fullname="Ted Lemon">
+      <organization>Apple Inc.</organization>
+      <address>
+        <postal>
+          <street>One Apple Park Way</street>
+          <city>Cupertino</city>
+          <region>California</region>
+          <code>95014</code>
+          <country>United States of America</country>
+        </postal>
+        <phone>+1 (408) 996-1010</phone>
+        <email>elemon@apple.com</email>
+      </address>
+    </author>
+
+    <date year='2020' month='July' day='13'/>
+
+    <area>INT</area>
+    <workgroup>DNSSD</workgroup>
+
+    <keyword>Multicast DNS</keyword>
+    <keyword>DNS-Based Service Discovery</keyword>
+
+    <abstract>
+      <t>An Advertising Proxy allows a device
+      that accepts service registra-tions using
+      Service Registration Protocol (SRP)
+      to make those regis-trations visible
+      to legacy clients that only implement Multicast DNS.</t>
+    </abstract>
+  </front>
+
+  <middle>
+    <section numbered="true">
+      <name>Introduction</name>
+      <t>
+      DNS-Based Service Discovery
+      <xref target="RFC6763"/>
+      <xref target="I-D.cheshire-dnssd-roadmap"/>
+      was designed to facilitate Zero Configuration IP Networking
+      <xref target="RFC6760"/>
+      <xref target="ZC"/>.<br/>
+
+      When used with Multicast DNS
+      <xref target="RFC6762"/>
+      with ".local" domain names
+      <xref target="RFC6761"/>
+      this works well on a single link (a single broadcast domain).
+      </t>
+
+      <t>
+      There is also a desire to have
+      DNS-Based Service Discovery
+      work between multiple links
+      that aren't part of the same broadcast domain
+      <xref target="RFC7558"/>.
+      Even within a single Wi&nbhy;Fi broadcast domain
+      it is beneficial to reduce multicast traffic,
+      because, in comparison to Wi&nbhy;Fi unicast traffic,
+      Wi&nbhy;Fi multicast is inefficient, slow, and unreliable
+      <xref target="I-D.ietf-mboned-ieee802-mcast-problems"/>.
+      </t>
+
+      <t>
+      There are three variant ways that this move
+      to greater use of unicast is achieved.
+      </t>
+
+      <t>
+      One variant is pure end-to-end unicast,
+      with services
+      using unicast Service Registration Protocol
+      <xref target="I-D.sctl-service-registration"/>
+      to register with a service registry,
+      and clients
+      using unicast DNS Push Notifications
+      <xref target="RFC8765"/>
+      over DNS Stateful Operations
+      <xref target="RFC8490"/>
+      to communicate with the service registry
+      to discover and track changes
+      to those registered services.
+      </t>
+      <t>
+      A second variant is a hybrid approach
+      that facilitates legacy devices
+      that only implement link-local Multicast DNS
+      (like your ten-year-old network laser printer)
+      having their services discovered by remote clients,
+      using a unicast DNS Push Notifications session
+      to a Discovery Proxy
+      <xref target="RFC8766"/>.
+      </t>
+
+      <t>
+      The third variant, documented here,
+      is a logical complement to the second variant.
+      It enables legacy clients
+      (that only implement link-local Multicast DNS)
+      to discover services registered (using unicast)
+      with a service registry.
+      The service registry accepts service registrations
+      using unicast Service Registration Protocol
+      <xref target="I-D.sctl-service-registration"/>,
+      and makes those service registrations visible,
+      both to remote clients using unicast DNS Push Notifications
+      <xref target="RFC8765"/>
+      and, using the Advertising Proxy mechanism documented here,
+      to local clients using Multicast DNS
+      <xref target="RFC6762"/>.
+      </t>
+
+    <section numbered="true">
+      <name>Conventions and Terminology Used in This Document</name>
+     
+        <t>
+        The key words "<bcp14>MUST</bcp14>", "<bcp14>MUST NOT</bcp14>",
+        "<bcp14>REQUIRED</bcp14>", "<bcp14>SHALL</bcp14>", "<bcp14>SHALL
+        NOT</bcp14>", "<bcp14>SHOULD</bcp14>", "<bcp14>SHOULD NOT</bcp14>",
+        "<bcp14>RECOMMENDED</bcp14>", "<bcp14>NOT RECOMMENDED</bcp14>",
+        "<bcp14>MAY</bcp14>", and "<bcp14>OPTIONAL</bcp14>" in this document are
+        to be interpreted as
+        described in BCP&nbsp;14 <xref target="RFC2119"/> <xref target="RFC8174"/> 
+        when, and only when, they appear in all capitals, as shown here.
+        </t>
+    </section>
+
+    </section>
+    <section numbered="true">
+      <name>Advertising Proxy</name>
+
+      <t>
+      An Advertising Proxy can be
+      a component of any DNS authoritative server,
+      though it logically makes most sense as a component of
+      a service registry
+      (a DNS authoritative server that implements
+      Service Registration Protocol
+      <xref target="I-D.sctl-service-registration"/>).
+      A client can send registration requests
+      for any valid DNS records to a service registry,
+      though in practice the most common use is to
+      register the PTR, SRV and TXT records that
+      describe a DNS-SD service
+      <xref target="RFC6763"/>.
+      </t>
+
+      <t>
+      When a service registry accepts
+      a registration request for DNS records,
+      a service registry that implements an Advertising Proxy
+      also advertises equivalent records
+      using Multicast DNS on one or more configured local
+      multicast-capable interfaces.
+      An Advertising Proxy could also advertise
+      on one or more configured remote multicast-capable interfaces
+      using a Multicast DNS Relay
+      <xref target="I-D.ietf-dnssd-mdns-relay"/>.
+      For the purposes of this document,
+      a local multicast-capable interface directly attached to the host
+      and
+      a remote multicast-capable interface connected via a relay
+      are considered to be equivalent.
+      </t>
+
+      <section numbered="true">
+        <name>Name Conflicts</name>
+        <t>
+        In the event that an SRP client attempts to register
+        a record with a name that was already created in that
+        registry by a different SRP client, 
+        or is otherwise disallowed by policy,
+        a name conflict is reported and the new
+        client is required to choose a new name.
+        </t>
+
+        <t>
+        Similarly, Multicast DNS implements
+        first-come-first-served name allocation.
+        When a registered record is advertised using
+        Multicast DNS it may suffer a name conflict if a
+        different Multicast DNS record with that name
+        already exists on that link.
+        In the case of network failures, Multicast DNS
+        can also signal name conflicts at a later time
+        during the life of a record registration.
+        For example, if the network link is partitioned at the
+        time of record registration, the name conflict may not
+        be discovered until later when the partition is healed.
+        </t>
+
+        <t>
+        Specifically, a name conflict can occur:
+        </t>
+
+        <ol>
+        <li>During the SRP validation process, because
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        another SRP client has already registered the same name.</li>
+        <li>Immediately while the Advertising Proxy
+        is registering the name.</li>
+        <li><t>After the name has been successfully registered,
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        but before the response has been sent to the client.</t></li>
+        <li>After the initial response has been sent to the client.</li>
+        </ol>
+
+        <t>
+        In the first three cases, the client can be notified
+        of the conflict at the time of registration,
+        and is expected to choose a new name.
+        In the last case, SRP clients must be coded defensively
+        to handle the case where an apparently successful
+        record registration is later determined to be in conflict,
+        just as existing Multicast DNS clients have to be
+        coded defensively to handle late conflicts gracefully.
+        With a sleepy SRP client there may be no way to
+        notify it of the conflict until it next re-registers.
+        In this case, the service registry with Advertising Proxy
+        capability is responsible for selecting a new name.
+        The service registry sends the client
+        the name it chose when it next renews.
+        </t>
+
+        <t>
+        The registration process has several steps.
+        First the hostname claimed by the SRP client must be registered.
+        Once this has succeeded, the Advertising Proxy can register
+        all of the service instances that point to that hostname.
+        When all of these registrations have succeeded, the
+        service registry can finally send its response to the SRP client.
+        If any of them fail,
+        they must all be removed and the client notified of the failure.
+        If the failure is a result of a name conflict, the response
+        code should be YXDOMAIN. Other SRP failures are documented
+        in the SRP specification. Any other failure returns SERVFAIL.
+        </t>
+      </section>
+
+      <section numbered="true">
+        <name>Data Translation</name>
+        <t>
+        As with a Discovery Proxy
+        <xref target="RFC8766"/>
+        some translation needs to be performed before the
+        Advertising Proxy makes the registered unicast data
+        visible using Multicast DNS.
+        Specifically, 
+        the unicast DNS domain name suffix configured
+        for Advertising Proxy use
+        is stripped off and replaced
+        with the top-level label "local".
+        </t>
+      </section>
+
+      <section numbered="true">
+        <name>No Text-Encoding Translation</name>
+
+        <t>
+        As with a Discovery Proxy
+        <xref target="RFC8766"/>,
+        an Advertising Proxy does no translation between
+        text encodings
+        <xref target="RFC6055"/>.
+        Specifically, an Advertising Proxy does no
+        translation between Punycode encoding
+        <xref target="RFC3492"/>
+        and UTF-8 encoding
+        <xref target="RFC3629"/>,
+        either in the owner name of DNS records or
+        anywhere in the RDATA of DNS records
+        (such as the RDATA of PTR records, SRV records, NS
+        records, or other record types like TXT, where it is
+        ambiguous whether the RDATA may contain DNS names).
+        All bytes are treated as-is with no attempt at
+        text-encoding translation.
+        A server implementing DNS-based Service Discovery
+        <xref target="RFC6763"/>
+        will use UTF-8 encoding for its unicast DNS-based
+        record registrations, which the Advertising Proxy
+        passes through without any text-encoding
+        translation to the Multicast DNS subsystem.
+        Queries from peers on the configured multicast-capable
+        interface are answered directly from the advertised data
+        without any text-encoding translation.
+        </t>
+      </section>
+
+      <section numbered="true">
+        <name>No Address Suppression</name>
+        <t>
+        Unlike a Discovery Proxy
+        <xref target="RFC8766"/>,
+        an Advertising Proxy does not need to selectively suppress
+        link-local
+        <xref target="RFC3927"/>
+        <xref target="RFC4862"/>
+        or other addresses.
+        Since the clients of the service registry are registering
+        their records in a unicast DNS namespace, there is a presumption
+        they they will only register addresses with sufficient scope
+        to be usable by the anticipated clients.
+        No further filtering or suppression
+        by the service registry is required.
+        </t>
+      </section>
+
+      <section numbered="true">
+        <name>No Support for Reconfirm</name>
+        <t>
+        For network efficiency,
+        Multicast DNS
+        <xref target="RFC6762"/>
+        uses fairly long record lifetimes
+        (typically 75 minutes).
+        When a client is unable to reach
+        a service that it discovered,
+        Multicast DNS provides a "reconfirm"
+        mechanism that enables the client
+        to signal to the Multicast DNS subsystem
+        that its cached data may be suspect,
+        which causes the Multicast DNS subsystem
+        to reissue queries, and remove the stale
+        records if the queries are not answered.
+        </t>
+        <t>
+        Similarly, when using unicast service discovery
+        with a Discovery Proxy <xref target="RFC8766"/>,
+        the DNS Push Notifications <xref target="RFC8765"/> protocol
+        provides the RECONFIRM mechanism to signal that
+        the Discovery Proxy should perform a local
+        Multicast DNS reconfirm operation to
+        re-verify the validity of the records.
+        </t>
+        <t>
+        When an Advertising Proxy is used,
+        to support legacy clients that only implement Multicast DNS,
+        reconfirm operations have no effect.
+
+        If a device uses unicast Service Registration Protocol
+        <xref target="I-D.sctl-service-registration"/>
+        to register its services
+        with a service registry with Advertising Proxy capability,
+        and the device then gets disconnected from the network,
+        the Advertising Proxy will continue to advertise
+        those records until the registrations expire.
+
+        If a client discovers the service instance using
+        Multicast DNS and is unable to reach it,
+        and uses a Multicast DNS reconfirm operation to re-verify
+        the validity of the records, then
+        the Advertising Proxy will continue
+        to answer on behalf of the departed device
+        until the record registrations expire.
+
+        The Advertising Proxy has no reliable way
+        to determine whether the additional Multicast DNS
+        queries are due to a reconfirm operation,
+        or due to other routine causes,
+        like a client being rebooted,
+        or disconnecting and then reconnecting to the network.
+
+        The service registry has no reliable automatic way
+        to determine whether a device that
+        registered records has failed or disconnected from the network.
+        Particularly with sleepy battery powered devices,
+        the service registry does not know what active duty cycle
+        any given service is expected to provide.
+        </t>
+        <t>
+        Consequently, reconfirm operations are not supported
+        with an Advertising Proxy.
+        In cases where use of the reconfirm mechanism
+        is important, clients should be upgraded to use the unicast
+        DNS Push Notifications <xref target="RFC8765"/> protocol's
+        RECONFIRM message.
+        This RECONFIRM message provides an unambiguous signal
+        to the service registry that it may be retaining stale records.
+        (A future update to the Service Registration Protocol document
+        <xref target="I-D.sctl-service-registration"/>
+        will consider ways that this unambiguous signal
+        can be used to trigger expedited removal of stale data.)
+        </t>
+      </section>
+
+    </section>
+
+    <section numbered="true">
+      <name>Security Considerations</name>
+        <t>An Advertising Proxy may made data visible
+        to eavesdroppers on the configured multicast-capable link(s).</t>
+    </section>
+    <section numbered="true">
+      <name>IANA Considerations</name>
+      <t>This document has no IANA actions.</t>
+    </section>
+
+  </middle>
+
+  <back>
+<displayreference target="I-D.cheshire-dnssd-roadmap" to="ROADMAP"/>
+<displayreference target="I-D.sctl-service-registration" to="SRP"/>
+<displayreference target="I-D.ietf-dnssd-mdns-relay" to="RELAY"/>
+<displayreference target="I-D.ietf-mboned-ieee802-mcast-problems" to="MCAST"/>
+
+    <references>
+      <name>References</name>
+      <references>
+        <name>Normative References</name>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.6760.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.6761.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.6762.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.6763.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.8490.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.8765.xml"/>
+
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml3/reference.I-D.sctl-service-registration.xml"/>
+      </references>
+
+      <references>
+        <name>Informative References</name>
+
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.3492.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.3629.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.3927.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.4862.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.6055.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.7558.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.8766.xml"/>
+
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-mboned-ieee802-mcast-problems.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-dnssd-mdns-relay.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml3/reference.I-D.cheshire-dnssd-roadmap.xml"/>
+
+        <reference anchor="ZC">
+          <front>
+            <title>Zero Configuration Networking: The Definitive Guide</title>
+            <seriesInfo name="ISBN" value="0-596-10100-7"/>
+            <author initials="S." surname="Cheshire"
+              fullname="Stuart Cheshire"/>
+            <author initials="D. H." surname="Steinberg"
+              fullname="Daniel H. Steinberg"/>
+            <date year="2005" month="December"/>
+          </front>
+            <refcontent>O'Reilly Media, Inc.</refcontent>
+        </reference>
+
+      </references>
+    </references>
+
+<!--
+    <section numbered="false">
+      <name>Acknowledgments</name>
+      <t>Thanks to <contact fullname="A Person"/>.</t>
+    </section>
+-->
+
+  </back>
+</rfc>
