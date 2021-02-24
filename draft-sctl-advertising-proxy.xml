@@ -2,7 +2,7 @@
 <!DOCTYPE rfc SYSTEM "rfc2629-xhtml.ent">
 
 <rfc xmlns:xi="http://www.w3.org/2001/XInclude" consensus="true"
-     category="std" docName="draft-sctl-advertising-proxy-00" ipr="trust200902"
+     category="std" docName="draft-sctl-advertising-proxy-01" ipr="trust200902"
      obsoletes="" updates="" submissionType="IETF" xml:lang="en"
      tocInclude="false" tocDepth="3" symRefs="true" sortRefs="false"
      version="3">
@@ -40,7 +40,7 @@
       </address>
     </author>
 
-    <date year='2020' month='July' day='13'/>
+    <date year='2021' month='February' day='22'/>
 
     <area>INT</area>
     <workgroup>DNSSD</workgroup>
@@ -89,8 +89,8 @@
       </t>
 
       <t>
-      There are three variant ways that this move
-      to greater use of unicast is achieved.
+      There are three complementary ways that this move
+      towards decreased reliance on multicast is achieved.
       </t>
 
       <t>
@@ -100,7 +100,7 @@
       <xref target="I-D.sctl-service-registration"/>
       to register with a service registry,
       and clients
-      using unicast DNS Push Notifications
+      using unicast DNS Push Notification subscriptions
       <xref target="RFC8765"/>
       over DNS Stateful Operations
       <xref target="RFC8490"/>
@@ -113,7 +113,7 @@
       that facilitates legacy devices
       that only implement link-local Multicast DNS
       (like your ten-year-old network laser printer)
-      having their services discovered by remote clients,
+      having their services discovered by remote clients
       using a unicast DNS Push Notifications session
       to a Discovery Proxy
       <xref target="RFC8766"/>.
@@ -169,7 +169,9 @@
       though in practice the most common use is to
       register the PTR, SRV and TXT records that
       describe a DNS-SD service
-      <xref target="RFC6763"/>.
+      <xref target="RFC6763"/>,
+      and the A and AAAA records that give the IPv4 and IPv6 addresses
+      of the target host where that service can be reached.
       </t>
 
       <t>
@@ -206,9 +208,9 @@
         first-come-first-served name allocation.
         When a registered record is advertised using
         Multicast DNS it may suffer a name conflict if a
-        different Multicast DNS record with that name
+        conflicting Multicast DNS record with that name
         already exists on that link.
-        In the case of network failures, Multicast DNS
+        In the case of network failure and subsequent recovery, Multicast DNS
         can also signal name conflicts at a later time
         during the life of a record registration.
         For example, if the network link is partitioned at the
@@ -226,7 +228,8 @@
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         another SRP client has already registered the same name.</li>
         <li>Immediately while the Advertising Proxy
-        is registering the name.</li>
+        is registering the name, if the Multicast DNS
+        uniqueness probes detect a conflicting record.</li>
         <li><t>After the name has been successfully registered,
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
@@ -245,10 +248,13 @@
         coded defensively to handle late conflicts gracefully.
         With a sleepy SRP client there may be no way to
         notify it of the conflict until it next re-registers.
-        In this case, the service registry with Advertising Proxy
-        capability is responsible for selecting a new name.
-        The service registry sends the client
-        the name it chose when it next renews.
+        In the case of late conflicts, the service registry with
+        Advertising Proxy capability is responsible for selecting
+        a temporary new name to be used until the client renews.
+        When the client next renews, the service registry
+        informs the client of the new name the service registry
+        selected on its behalf. The client can choose to accept
+        that new name, or select a new name of its own choosing.
         </t>
 
         <t>
@@ -262,7 +268,8 @@
         they must all be removed and the client notified of the failure.
         If the failure is a result of a name conflict, the response
         code should be YXDOMAIN. Other SRP failures are documented
-        in the SRP specification. Any other failure returns SERVFAIL.
+        in the SRP specification. Any other failures not contemplated
+        in the SRP specification return SERVFAIL.
         </t>
       </section>
 
@@ -331,6 +338,12 @@
         to be usable by the anticipated clients.
         No further filtering or suppression
         by the service registry is required.
+        In most cases it is acceptable for devices registering
+        with a service registry to register all of their
+        available addresses, and a client implementing 
+        <xref target="RFC8305">Happy Eyeballs</xref>
+        connecting to that service will automatically
+        select an appropriate address to use.
         </t>
       </section>
 
@@ -472,6 +485,8 @@
           href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.6055.xml"/>
         <xi:include
           href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.7558.xml"/>
+        <xi:include
+          href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.8305.xml"/>
         <xi:include
           href="https://xml2rfc.ietf.org/public/rfc/bibxml/reference.RFC.8766.xml"/>
 
